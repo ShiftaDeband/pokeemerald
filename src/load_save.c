@@ -1,10 +1,10 @@
 #include "global.h"
 #include "malloc.h"
-#include "berry_powder.h"
 #include "item.h"
 #include "load_save.h"
-#include "main.h"
+#include "berry_powder.h"
 #include "overworld.h"
+#include "main.h"
 #include "pokemon.h"
 #include "pokemon_storage_system.h"
 #include "random.h"
@@ -13,6 +13,7 @@
 #include "gba/flash_internal.h"
 #include "decoration_inventory.h"
 #include "agb_flash.h"
+#include "sloopsvc.h"
 
 static void ApplyNewEncryptionKeyToAllEncryptedData(u32 encryptionKey);
 
@@ -129,6 +130,9 @@ void MoveSaveBlocks_ResetHeap(void)
     encryptionKey = (Random() << 16) + (Random());
     ApplyNewEncryptionKeyToAllEncryptedData(encryptionKey);
     gSaveBlock2Ptr->encryptionKey = encryptionKey;
+#if REVISION >= 0xA
+    svc_SetSaveBlock2(gSaveBlock2Ptr);
+#endif
 }
 
 u32 UseContinueGameWarp(void)

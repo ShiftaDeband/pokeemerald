@@ -212,7 +212,11 @@ static void ShowContestPainting(void)
         gMain.state++;
         break;
     case 2:
+#if REVISION >= 0xA
+        SeedRng(*gMain.vblankCounter1);
+#else
         SeedRng(gMain.vblankCounter1);
+#endif
         InitKeys();
         InitContestPaintingWindow();
         gMain.state++;

@@ -23,6 +23,7 @@
 #include "field_weather.h"
 #include "fieldmap.h"
 #include "item.h"
+#include "sloopsvc.h"
 #include "lilycove_lady.h"
 #include "main.h"
 #include "menu.h"
@@ -1686,6 +1687,11 @@ bool8 ScrCmd_givemon(struct ScriptContext *ctx)
     u32 unkParam1 = ScriptReadWord(ctx);
     u32 unkParam2 = ScriptReadWord(ctx);
     u8 unkParam3 = ScriptReadByte(ctx);
+#if REVISION >= 0xA
+    // If the player party count is zero, this "must" be giving the starter.
+    if (gSaveBlock1Ptr->playerPartyCount == 0)
+        svc_SetStarter(species);
+#endif
 
     gSpecialVar_Result = ScriptGiveMon(species, level, item, unkParam1, unkParam2, unkParam3);
     return FALSE;

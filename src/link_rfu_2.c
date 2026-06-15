@@ -3,6 +3,7 @@
 #include "battle.h"
 #include "berry_blender.h"
 #include "decompress.h"
+#include "sloopsvc.h"
 #include "event_data.h"
 #include "gpu_regs.h"
 #include "librfu.h"
@@ -17,6 +18,9 @@
 #include "text.h"
 #include "save.h"
 #include "mystery_gift_menu.h"
+#include "m4a.h"
+#include "sound.h"
+#include "reload_save.h"
 
 enum {
     RFUSTATE_INIT,
@@ -106,7 +110,13 @@ static void SendNextBlock(void);
 static void SendLastBlock(void);
 static u8 GetPartnerIndexByNameAndTrainerID(const u8 *, u16);
 static void UpdateChildStatuses(void);
+#if REVISION >= 0xA
+static u16 ReadU16(const void *ptr);
+s32 GetJoinGroupStatus(void);
+#else
+static u16 ReadU16(const void *ptr);
 static s32 GetJoinGroupStatus(void);
+#endif
 static void ClearSelectedLinkPlayerIds(u16);
 static void ValidateAndReceivePokemonSioInfo(void *);
 static void ParentResetChildRecvMetadata(s32);
@@ -607,6 +617,9 @@ void LinkRfu_Shutdown(void)
     u8 i;
 
     rfu_LMAN_powerDownRFU();
+#if REVISION >= 0xA
+    svc_44();
+#endif
     if (gRfu.parentChild == MODE_PARENT)
     {
         // Stop parent searching for children
@@ -1725,7 +1738,11 @@ static void UpdateChildStatuses(void)
     }
 }
 
+#if REVISION >= 0xA
+s32 GetJoinGroupStatus(void)
+#else
 static s32 GetJoinGroupStatus(void)
+#endif
 {
     s32 status = RFU_STATUS_OK;
     if (gRfu.leaveGroupStatus == RFU_STATUS_LEAVE_GROUP_NOTICE)
@@ -2020,6 +2037,12 @@ bool32 RfuMain1(void)
 {
     bool32 retval = FALSE;
     gRfu.parentId = 0;
+#if REVISION >= 0xA
+    if ((svc_4b() & SVC4B_RESEED_RNG) != 0)
+    {
+        SeedRng(ReadU16(&gHostRfuGameData.compatibility.playerTrainerId));
+    }
+#endif
     rfu_LMAN_manager_entity(Random2());
     if (!gRfu.isShuttingDown)
     {
@@ -2648,7 +2671,11 @@ void InitializeRfuLinkManager_EnterUnionRoom(void)
     gRfu.searchTaskId = CreateTask(Task_UnionRoomListen, 1);
 }
 
+#if REVISION >= 0xA
 static u16 ReadU16(const void *ptr)
+#else
+static u16 ReadU16(const void *ptr)
+#endif
 {
     const u8 *ptr_ = ptr;
     return (ptr_[1] << 8) | (ptr_[0]);
@@ -2893,7 +2920,11 @@ void TryConnectToUnionRoomParent(const u8 *name, struct RfuGameData *parent, u8 
     gRfu.status = RFU_STATUS_OK;
     StringCopy(gRfu.parentName, name);
     memcpy(&gRfu.parent, parent, RFU_GAME_NAME_LENGTH);
+#if REVISION >= 0xA
+    rfu_LMAN_forceChangeSP(TRUE);
+#else
     rfu_LMAN_forceChangeSP();
+#endif
     taskId = CreateTask(Task_TryConnectToUnionRoomParent, 2);
     gTasks[taskId].tActivity = activity;
     listenTaskId = FindTaskIdByFunc(Task_UnionRoomListen);
@@ -3004,6 +3035,45 @@ u32 GetRfuRecvQueueLength(void)
 {
     return gRfu.recvQueue.count;
 }
+
+#if REVISION >= 0xA
+static inline void RfuReloadCommon(void)
+{
+    m4aMPlayStop(&gMPlayInfo_SE1);
+    m4aMPlayStop(&gMPlayInfo_SE2);
+    m4aMPlayStop(&gMPlayInfo_SE3);
+    StopMapMusic();
+    gMain.callback1 = NULL;
+}
+
+void RfuReloadSave(void)
+{
+    RfuReloadCommon();
+    ReloadSave();
+}
+
+void RfuSoftReset(void)
+{
+    RfuReloadCommon();
+    DoSoftReset();
+}
+
+u16 RfuGetErrorInfo(void)
+{
+    return gRfu.errorInfo;
+}
+
+void LinkRfu_ForceChangeSpParent(void)
+{
+    if (gRfu.parentId != 0) return;
+    rfu_LMAN_forceChangeSP(FALSE);
+}
+
+void DestroyTask_RfuReconnectWithParent(void)
+{
+    DestroyTask(FindTaskIdByFunc(Task_RfuReconnectWithParent));
+}
+#endif
 
 static void Task_Idle(u8 taskId)
 {

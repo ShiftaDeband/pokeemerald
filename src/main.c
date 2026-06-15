@@ -24,6 +24,7 @@
 #include "main.h"
 #include "trainer_hill.h"
 #include "constants/rgb.h"
+#include "sloopsvc.h"
 
 static void VBlankIntr(void);
 static void HBlankIntr(void);
@@ -31,11 +32,27 @@ static void VCountIntr(void);
 static void SerialIntr(void);
 static void IntrDummy(void);
 
+#if REVISION >= 0xA && !MODERN
+const char OtherBuildDateTime[] = "2025 12 19 16:01";
+#endif
+
+#if REVISION >= 0xA
+// OtherBuildDateTime is probably in some other file?
+__attribute__((aligned(4)))
+#endif
 const u8 gGameVersion = GAME_VERSION;
 
 const u8 gGameLanguage = GAME_LANGUAGE; // English
 
+#if MODERN
+const char BuildDateTime[] = __DATE__ " " __TIME__;
+#else
+#if REVISION == 0
 const char BuildDateTime[] = "2005 02 21 11:10";
+#elif REVISION == 0xA
+const char BuildDateTime[] = "2025 12 19 15:38 22afedd9";
+#endif //REVISION
+#endif //MODERN
 
 const IntrFunc gIntrTableTemplate[] =
 {
@@ -69,6 +86,12 @@ COMMON_DATA u8 gLinkVSyncDisabled = 0;
 COMMON_DATA u32 IntrMain_Buffer[0x200] = {0};
 COMMON_DATA s8 gPcmDmaCounter = 0;
 
+#if REVISION >= 0xA
+COMMON_DATA u8 sVcountAfterSound = 0;
+COMMON_DATA u8 sVcountAtIntr = 0;
+COMMON_DATA u8 sVcountBeforeSound = 0;
+#endif
+
 static EWRAM_DATA u16 sTrainerId = 0;
 
 //EWRAM_DATA void (**gFlashTimerIntrFunc)(void) = NULL;
@@ -88,12 +111,24 @@ void EnableVCountIntrAtLine150(void);
 
 void AgbMain(void)
 {
+#if REVISION >= 0xA
+    svc_stubbed();
+#endif
     // Modern compilers are liberal with the stack on entry to this function,
     // so RegisterRamReset may crash if it resets IWRAM.
-#if !MODERN
+#if MODERN
+    RegisterRamReset(RESET_ALL & ~RESET_IWRAM);
+    // Explicitly zero IWRAM [0x03000000, 0x03007E00) via DMA
+    DmaFill32(3, 0, (void *)0x03000000, 0x7E00);
+    *(vu16 *)BG_PLTT = RGB_BLACK;
+#else
     RegisterRamReset(RESET_ALL);
-#endif //MODERN
+#if REVISION >= 0xA
+    *(vu16 *)BG_PLTT = RGB_BLACK;
+#else
     *(vu16 *)BG_PLTT = RGB_WHITE; // Set the backdrop to white on startup
+#endif
+#endif //MODERN
     InitGpuRegManager();
     REG_WAITCNT = WAITCNT_PREFETCH_ENABLE | WAITCNT_WS0_S_1 | WAITCNT_WS0_N_3;
     InitKeys();
@@ -121,9 +156,9 @@ void AgbMain(void)
     gLinkTransferringData = FALSE;
     sUnusedVar = 0xFC0;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || REVISION >= 0xA
 #if (LOG_HANDLER == LOG_HANDLER_MGBA_PRINT)
-    (void) MgbaOpen();
+    MgbaOpen();
 #elif (LOG_HANDLER == LOG_HANDLER_AGB_PRINT)
     AGBPrintInit();
 #endif
@@ -137,7 +172,9 @@ void AgbMain(void)
          && JOY_HELD_RAW(B_START_SELECT) == B_START_SELECT)
         {
             rfu_REQ_stopMode();
+#if REVISION < 0xA
             rfu_waitREQComplete();
+#endif
             DoSoftReset();
         }
 
@@ -183,6 +220,9 @@ static void InitMainCallbacks(void)
     SetMainCallback2(CB2_InitCopyrightScreenAfterBootup);
     gSaveBlock2Ptr = &gSaveblock2.block;
     gPokemonStoragePtr = &gPokemonStorage.block;
+#if REVISION >= 0xA
+    svc_SetSaveBlock2(gSaveBlock2Ptr);
+#endif
 }
 
 static void CallCallbacks(void)
@@ -337,6 +377,18 @@ void SetSerialCallback(IntrCallback callback)
     gMain.serialCallback = callback;
 }
 
+#if REVISION >= 0xA
+void SetVBlankCounter1Ptr(u32 *ptr)
+{
+    gMain.vblankCounter1 = ptr;
+}
+
+void DisableVBlankCounter1(void)
+{
+    gMain.vblankCounter1 = NULL;
+}
+#endif
+
 static void VBlankIntr(void)
 {
     if (gWirelessCommType != 0)
@@ -344,7 +396,12 @@ static void VBlankIntr(void)
     else if (gLinkVSyncDisabled == FALSE)
         LinkVSync();
 
+#if REVISION >= 0xA
+    if (gMain.vblankCounter1)
+        (*gMain.vblankCounter1)++;
+#else
     gMain.vblankCounter1++;
+#endif
 
     if (gTrainerHillVBlankCounter && *gTrainerHillVBlankCounter < 0xFFFFFFFF)
         (*gTrainerHillVBlankCounter)++;
@@ -359,7 +416,13 @@ static void VBlankIntr(void)
 
     gPcmDmaCounter = gSoundInfo.pcmDmaCounter;
 
+#if REVISION >= 0xA
+    sVcountBeforeSound = REG_VCOUNT;
+#endif
     m4aSoundMain();
+#if REVISION >= 0xA
+    sVcountAfterSound = REG_VCOUNT;
+#endif
     TryReceiveLinkBattleData();
 
     if (!gMain.inBattle || !(gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_FRONTIER | BATTLE_TYPE_RECORDED)))
@@ -390,6 +453,9 @@ static void VCountIntr(void)
     if (gMain.vcountCallback)
         gMain.vcountCallback();
 
+#if REVISION >= 0xA
+    sVcountAtIntr = REG_VCOUNT;
+#endif
     m4aSoundVSync();
     INTR_CHECK |= INTR_FLAG_VCOUNT;
     gMain.intrCheck |= INTR_FLAG_VCOUNT;

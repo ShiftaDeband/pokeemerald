@@ -152,14 +152,22 @@ static void RunTimeBasedEvents(s16 *data)
     switch (tState)
     {
     case 0:
+#if REVISION >= 0xA
+        if ((*gMain.vblankCounter1) & TIME_UPDATE_INTERVAL)
+#else
         if (gMain.vblankCounter1 & TIME_UPDATE_INTERVAL)
+#endif
         {
             DoTimeBasedEvents();
             tState++;
         }
         break;
     case 1:
+#if REVISION >= 0xA
+        if (!((*gMain.vblankCounter1) & TIME_UPDATE_INTERVAL))
+#else
         if (!(gMain.vblankCounter1 & TIME_UPDATE_INTERVAL))
+#endif
             tState--;
         break;
     }

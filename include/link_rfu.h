@@ -328,5 +328,18 @@ void InitHostRfuGameData(struct RfuGameData *data, u8 activity, bool32 startedAc
 void CreateWirelessStatusIndicatorSprite(u8 x, u8 y);
 void DestroyWirelessStatusIndicatorSprite(void);
 void LoadWirelessStatusIndicatorSpriteGfx(void);
+#if REVISION >= 0xA
+s32 GetJoinGroupStatus(void);
+u16 RfuGetErrorInfo(void);
+void LinkRfu_ForceChangeSpParent(void);
+void DestroyTask_RfuReconnectWithParent(void);
+void RfuReloadSave(void);
+void RfuSoftReset(void);
+#endif
+
+#if REVISION >= 0xA
+void PkmnStrToASCII(u8 *dest, const u8 *src);
+void ASCIIToPkmnStr(u8 *dest, const u8 *src);
+#endif
 
 #endif //GUARD_LINK_RFU_H

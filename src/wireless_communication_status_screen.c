@@ -18,6 +18,9 @@
 #include "union_room.h"
 #include "constants/songs.h"
 #include "constants/union_room.h"
+#if REVISION >= 0xA
+#include "sloopsvc.h"
+#endif
 #include "constants/rgb.h"
 
 enum {
@@ -57,7 +60,7 @@ struct WirelessCommunicationStatusScreen
 static struct WirelessCommunicationStatusScreen *sStatusScreen;
 
 static void CB2_InitWirelessCommunicationScreen(void);
-static void Task_WirelessCommunicationScreen(u8);
+void Task_WirelessCommunicationScreen(u8);
 static void WCSS_AddTextPrinterParameterized(u8, u8, const u8 *, u8, u8, u8);
 static bool32 UpdateCommunicationCounts(u32 *, u32 *, u32 *, u8);
 
@@ -286,7 +289,7 @@ static void PrintHeaderTexts(void)
 
 #define tState data[0]
 
-static void Task_WirelessCommunicationScreen(u8 taskId)
+void Task_WirelessCommunicationScreen(u8 taskId)
 {
     s32 i;
     switch (gTasks[taskId].tState)
@@ -321,7 +324,11 @@ static void Task_WirelessCommunicationScreen(u8 taskId)
             PutWindowTilemap(WIN_GROUP_COUNTS);
             CopyWindowToVram(WIN_GROUP_COUNTS, COPYWIN_FULL);
         }
+#if REVISION >= 0xA
+        if (JOY_NEW(A_BUTTON) || JOY_NEW(B_BUTTON) || svc_53())
+#else
         if (JOY_NEW(A_BUTTON) || JOY_NEW(B_BUTTON))
+#endif
         {
             PlaySE(SE_SELECT);
             gTasks[sStatusScreen->rfuTaskId].data[15] = 0xFF;

@@ -19,6 +19,8 @@
 #include "menu.h"
 #include "text.h"
 #include "strings.h"
+#include "link_rfu.h"
+#include "sloopsvc.h"
 #include "constants/songs.h"
 #include "sound.h"
 #include "trade.h"
@@ -133,6 +135,10 @@ static void ResetBlockSend(void);
 static bool32 InitBlockSend(const void *, size_t);
 static void LinkCB_BlockSendBegin(void);
 static void LinkCB_BlockSend(void);
+#if REVISION >= 0xA
+void Task_WirelessCommunicationScreen(u8 taskId);
+void Task_MysteryGift(u8 taskId);
+#endif
 static void LinkCB_BlockSendEnd(void);
 static void SetBlockReceivedFlag(u8);
 static u16 LinkTestCalcBlockChecksum(const u16 *, u16);
@@ -1795,8 +1801,29 @@ bool8 HandleLinkConnection(void)
     }
     else
     {
+#if REVISION >= 0xA
+        bool32 reloadOrReset = FALSE;
+        if (svc_51())
+        {
+            if (!FuncIsActiveTask(Task_WirelessCommunicationScreen) && (InUnionRoom() || gReceivedRemoteLinkPlayers != 0 || Rfu_IsMaster() <= MODE_PARENT))
+            {
+                reloadOrReset = TRUE;
+            }
+            CloseLink();
+        }
+#endif
         main1Failed = RfuMain1(); // Always returns FALSE
         main2Failed = RfuMain2();
+#if REVISION >= 0xA
+        if (reloadOrReset)
+        {
+            if (FuncIsActiveTask(Task_MysteryGift))
+                RfuSoftReset();
+            else
+                RfuReloadSave();
+        }
+        else
+#endif
         if (IsSendingKeysOverCable() == TRUE)
         {
             // This will never be reached.

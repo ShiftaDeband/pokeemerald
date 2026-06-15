@@ -43,7 +43,11 @@ enum {
 
 static void LoadMysteryGiftTextboxBorder(u8 bgId);
 static void CreateMysteryGiftTask(void);
+#if REVISION >= 0xA
+void Task_MysteryGift(u8 taskId);
+#else
 static void Task_MysteryGift(u8 taskId);
+#endif
 
 EWRAM_DATA static u8 sDownArrowCounterAndYCoordIdx[8] = {};
 EWRAM_DATA bool8 gGiftIsFromEReader = FALSE;
@@ -1126,7 +1130,11 @@ static void CreateMysteryGiftTask(void)
     data->clientMsg = AllocZeroed(CLIENT_MAX_MSG_SIZE);
 }
 
+#if REVISION >= 0xA
+void Task_MysteryGift(u8 taskId)
+#else
 static void Task_MysteryGift(u8 taskId)
+#endif
 {
     struct MysteryGiftTaskData *data = (void *)gTasks[taskId].data;
     u32 successMsg, input;

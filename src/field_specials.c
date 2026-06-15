@@ -162,7 +162,11 @@ void Special_BeginCyclingRoadChallenge(void)
 {
     gBikeCyclingChallenge = TRUE;
     gBikeCollisions = 0;
+#if REVISION >= 0xA
+    sBikeCyclingTimer = *gMain.vblankCounter1;
+#else
     sBikeCyclingTimer = gMain.vblankCounter1;
+#endif
 }
 
 u16 GetPlayerAvatarBike(void)
@@ -228,7 +232,11 @@ static void DetermineCyclingRoadResults(u32 numFrames, u8 numBikeCollisions)
 
 void FinishCyclingRoadChallenge(void)
 {
+#if REVISION >= 0xA
+    const u32 numFrames = *gMain.vblankCounter1 - sBikeCyclingTimer;
+#else
     const u32 numFrames = gMain.vblankCounter1 - sBikeCyclingTimer;
+#endif
 
     DetermineCyclingRoadResults(numFrames, gBikeCollisions);
     RecordCyclingRoadResults(numFrames, gBikeCollisions);

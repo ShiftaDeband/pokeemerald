@@ -32,6 +32,7 @@
 #include "safari_zone.h"
 #include "save.h"
 #include "scanline_effect.h"
+#include "sloopsvc.h"
 #include "script.h"
 #include "sound.h"
 #include "start_menu.h"
@@ -1302,6 +1303,9 @@ static void Task_SaveAfterLinkBattle(u8 taskId)
             if (WriteSaveBlock1Sector())
             {
                 ClearContinueGameWarpStatus2();
+#if REVISION >= 0xA
+                svc_FinishSave();
+#endif
                 *state = 3;
                 gSoftResetDisabled = FALSE;
             }

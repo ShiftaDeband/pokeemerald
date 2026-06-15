@@ -1,6 +1,7 @@
 #include "global.h"
 #include "agb_flash.h"
 #include "gba/flash_internal.h"
+#include "sloopsvc.h"
 #include "fieldmap.h"
 #include "save.h"
 #include "task.h"
@@ -11,6 +12,9 @@
 #include "trainer_hill.h"
 #include "link.h"
 #include "constants/game_stat.h"
+#if REVISION >= 0xA
+#include "sloopsvc.h"
+#endif
 
 static u16 CalculateChecksum(void *, u16);
 static bool8 ReadFlashSector(u8, struct SaveSector *);
@@ -226,20 +230,26 @@ static u8 HandleWriteSectorNBytes(u8 sectorId, u8 *data, u16 size)
     return TryWriteSector(sectorId, sector->data);
 }
 
-static u8 TryWriteSector(u8 sector, u8 *data)
+static u8 TryWriteSector(u8 sectorNum, u8 *data)
 {
-    if (ProgramFlashSectorAndVerify(sector, data)) // is damaged?
+#if REVISION >= 0xA
+    svc_WriteSector(sectorNum, data);
+    SetDamagedSectorBits(DISABLE, sectorNum);
+    return SAVE_STATUS_OK;
+#else
+    if (ProgramFlashSectorAndVerify(sectorNum, data))
     {
         // Failed
-        SetDamagedSectorBits(ENABLE, sector);
+        SetDamagedSectorBits(ENABLE, sectorNum);
         return SAVE_STATUS_ERROR;
     }
     else
     {
         // Succeeded
-        SetDamagedSectorBits(DISABLE, sector);
+        SetDamagedSectorBits(DISABLE, sectorNum);
         return SAVE_STATUS_OK;
     }
+#endif
 }
 
 static u32 RestoreSaveBackupVarsAndIncrement(const struct SaveSectorLocation *locations)
@@ -338,6 +348,11 @@ static u8 HandleReplaceSector(u16 sectorId, const struct SaveSectorLocation *loc
 
     gReadWriteSector->checksum = CalculateChecksum(data, size);
 
+#if REVISION >= 0xA
+    svc_ReplaceSector(sector, (u8*)gReadWriteSector);
+    SetDamagedSectorBits(DISABLE, sector);
+    return SAVE_STATUS_OK;
+#else
     // Erase old save data
     EraseFlashSector(sector);
 
@@ -388,6 +403,7 @@ static u8 HandleReplaceSector(u16 sectorId, const struct SaveSectorLocation *loc
             return SAVE_STATUS_OK;
         }
     }
+#endif
 }
 
 static u8 WriteSectorSignatureByte_NoOffset(u16 sectorId, const struct SaveSectorLocation *locations)
@@ -759,6 +775,9 @@ u8 HandleSavingData(u8 saveType)
         break;
     }
     gTrainerHillVBlankCounter = backupVar;
+#if REVISION >= 0xA
+    svc_FinishSave();
+#endif
     return 0;
 }
 
@@ -1030,6 +1049,9 @@ void Task_LinkFullSave(u8 taskId)
         if (IsLinkTaskFinished())
         {
             LinkFullSave_SetLastSectorSignature();
+#if REVISION >= 0xA
+            svc_FinishSave();
+#endif
             tState = 9;
         }
         break;

@@ -19,6 +19,7 @@
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
+#include "sloopsvc.h"
 #include "task.h"
 #include "text.h"
 #include "text_window.h"
@@ -1401,6 +1402,9 @@ static void Chat_SendMessage(void)
     switch (sChat->funcState)
     {
     case 0:
+#if REVISION >= 0xA
+        svc_BadWordCheck(sChat->messageEntryBuffer);
+#endif
         if (!gReceivedRemoteLinkPlayers)
         {
             SetChatFunction(CHAT_FUNC_HANDLE_INPUT);
@@ -1752,6 +1756,9 @@ static void RegisterTextAtRow(void)
 {
     u8 *src = GetLimitedMessageStartPtr();
     StringCopy(sChat->registeredTexts[sChat->currentRow], src);
+#if REVISION >= 0xA
+    svc_BadWordCheck(sChat->registeredTexts[sChat->currentRow]);
+#endif
     sChat->changedRegisteredTexts = TRUE;
 }
 

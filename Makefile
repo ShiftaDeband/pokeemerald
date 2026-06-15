@@ -1,26 +1,7 @@
-# GBA rom header
-TITLE       := POKEMON EMER
-GAME_CODE   := BPEE
-MAKER_CODE  := 01
-REVISION    := 0
-MODERN      ?= 0
-KEEP_TEMPS  ?= 0
+include config.mk
 
-# `File name`.gba ('_modern' will be appended to the modern builds)
+# `File name`.gba
 FILE_NAME := pokeemerald
-BUILD_DIR := build
-
-# Builds the ROM using a modern compiler
-MODERN      ?= 0
-# Compares the ROM to a checksum of the original - only makes sense using when non-modern
-COMPARE     ?= 0
-
-ifeq (modern,$(MAKECMDGOALS))
-  MODERN := 1
-endif
-ifeq (compare,$(MAKECMDGOALS))
-  COMPARE := 1
-endif
 
 # Default make rule
 all: rom
@@ -67,25 +48,11 @@ else
   CPP := $(PREFIX)cpp
 endif
 
-ROM_NAME := $(FILE_NAME).gba
-OBJ_DIR_NAME := $(BUILD_DIR)/emerald
-MODERN_ROM_NAME := $(FILE_NAME)_modern.gba
-MODERN_OBJ_DIR_NAME := $(BUILD_DIR)/modern
 ASSETS_DIR_NAME := $(BUILD_DIR)/assets
 
-ELF_NAME := $(ROM_NAME:.gba=.elf)
-MAP_NAME := $(ROM_NAME:.gba=.map)
-MODERN_ELF_NAME := $(MODERN_ROM_NAME:.gba=.elf)
-MODERN_MAP_NAME := $(MODERN_ROM_NAME:.gba=.map)
+ROM := poke$(BUILD_NAME).gba
+OBJ_DIR := $(BUILD_DIR)/$(BUILD_NAME)
 
-# Pick our active variables
-ifeq ($(MODERN),0)
-  ROM := $(ROM_NAME)
-  OBJ_DIR := $(OBJ_DIR_NAME)
-else
-  ROM := $(MODERN_ROM_NAME)
-  OBJ_DIR := $(MODERN_OBJ_DIR_NAME)
-endif
 ELF := $(ROM:.gba=.elf)
 MAP := $(ROM:.gba=.map)
 SYM := $(ROM:.gba=.sym)
@@ -105,14 +72,14 @@ MID_BUILDDIR = $(OBJ_DIR)/$(MID_SUBDIR)
 SHELL := bash -o pipefail
 
 # Set flags for tools
-ASFLAGS := -mcpu=arm7tdmi --defsym MODERN=$(MODERN)
+ASFLAGS := -mcpu=arm7tdmi --defsym REVISION=$(GAME_REVISION) --defsym MODERN=$(MODERN)
 
 INCLUDE_DIRS := include
 INCLUDE_CPP_ARGS := $(INCLUDE_DIRS:%=-iquote %)
 INCLUDE_SCANINC_ARGS := $(INCLUDE_DIRS:%=-I %)
 
 O_LEVEL ?= 2
-CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DMODERN=$(MODERN)
+CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DREVISION=$(GAME_REVISION) -DMODERN=$(MODERN)
 ifeq ($(MODERN),0)
   CPPFLAGS += -I tools/agbcc/include -I tools/agbcc -nostdinc -undef -std=gnu89
   CC1 := tools/agbcc/bin/agbcc$(EXE)
@@ -159,8 +126,11 @@ MAKEFLAGS += --no-print-directory
 # Delete files that weren't built properly
 .DELETE_ON_ERROR:
 
-RULES_NO_SCAN += libagbsyscall clean clean-assets tidy tidymodern tidynonmodern generated clean-generated
-.PHONY: all rom modern compare
+ALL_BUILDS := emerald emerald_switch
+ALL_BUILDS += $(ALL_BUILDS:%=%_modern)
+
+RULES_NO_SCAN += libagbsyscall clean clean-assets tidy generated clean-generated
+.PHONY: all rom modern compare $(ALL_BUILDS) $(ALL_BUILDS:%=compare_%)
 .PHONY: $(RULES_NO_SCAN)
 
 infoshell = $(foreach line, $(shell $1 | sed "s/ /__SPACE__/g"), $(info $(subst __SPACE__, ,$(line))))
@@ -220,10 +190,21 @@ $(shell mkdir -p $(SUBDIRS))
 modern: all
 compare: all
 
+# Friendly target names
+pokeemerald:                ; @$(MAKE) GAME_REVISION=0
+pokeemerald_switch:          ; @$(MAKE) GAME_REVISION=10
+pokeemerald_modern:         ; @$(MAKE) MODERN=1
+pokeemerald_switch_modern:  ; @$(MAKE) GAME_REVISION=10 MODERN=1
+
+compare_pokeemerald:                ; @$(MAKE) COMPARE=1
+compare_pokeemerald_switch:          ; @$(MAKE) GAME_REVISION=10 COMPARE=1
+compare_pokeemerald_modern:         ; @$(MAKE) MODERN=1 COMPARE=1
+compare_pokeemerald_switch_modern:  ; @$(MAKE) GAME_REVISION=10 MODERN=1 COMPARE=1
+
 # Other rules
 rom: $(ROM)
 ifeq ($(COMPARE),1)
-	@$(SHA1) rom.sha1
+	@$(SHA1) $(BUILD_NAME).sha1
 endif
 
 syms: $(SYM)
@@ -240,15 +221,9 @@ clean-assets:
 	find . \( -iname '*.1bpp' -o -iname '*.4bpp' -o -iname '*.8bpp' -o -iname '*.gbapal' -o -iname '*.lz' -o -iname '*.rl' -o -iname '*.latfont' -o -iname '*.hwjpnfont' -o -iname '*.fwjpnfont' \) -exec rm {} +
 	find $(DATA_ASM_SUBDIR)/maps \( -iname 'connections.inc' -o -iname 'events.inc' -o -iname 'header.inc' \) -exec rm {} +
 
-tidy: tidynonmodern tidymodern
-
-tidynonmodern:
-	rm -f $(ROM_NAME) $(ELF_NAME) $(MAP_NAME)
-	rm -rf $(OBJ_DIR_NAME)
-
-tidymodern:
-	rm -f $(MODERN_ROM_NAME) $(MODERN_ELF_NAME) $(MODERN_MAP_NAME)
-	rm -rf $(MODERN_OBJ_DIR_NAME)
+tidy:
+	rm -f $(ALL_BUILDS:%=poke%{.gba,.elf,.map,.sym})
+	rm -rf $(BUILD_DIR)
 
 # Other rules
 include graphics_file_rules.mk
@@ -358,10 +333,24 @@ $(OBJ_DIR)/sym_common.ld: sym_common.txt $(C_OBJS) $(wildcard common_syms/*.txt)
 $(OBJ_DIR)/sym_ewram.ld: sym_ewram.txt
 	$(RAMSCRGEN) ewram_data $< ENGLISH > $@
 
+$(OBJ_DIR)/sym_bss_rev10.ld: sym_bss_rev10.txt
+	$(RAMSCRGEN) .bss $< ENGLISH > $@
+
+$(OBJ_DIR)/sym_common_rev10.ld: sym_common_rev10.txt $(C_OBJS) $(wildcard common_syms/*.txt)
+	$(RAMSCRGEN) COMMON $< ENGLISH -c $(C_BUILDDIR),common_syms > $@
+
+$(OBJ_DIR)/sym_ewram_rev10.ld: sym_ewram_rev10.txt
+	$(RAMSCRGEN) ewram_data $< ENGLISH > $@
+
 # Linker script
 ifeq ($(MODERN),0)
+ifeq ($(GAME_REVISION),10)
+LD_SCRIPT := ld_script_rev10.ld
+LD_SCRIPT_DEPS := $(OBJ_DIR)/sym_bss_rev10.ld $(OBJ_DIR)/sym_common_rev10.ld $(OBJ_DIR)/sym_ewram_rev10.ld
+else
 LD_SCRIPT := ld_script.ld
 LD_SCRIPT_DEPS := $(OBJ_DIR)/sym_bss.ld $(OBJ_DIR)/sym_common.ld $(OBJ_DIR)/sym_ewram.ld
+endif
 else
 LD_SCRIPT := ld_script_modern.ld
 LD_SCRIPT_DEPS :=
@@ -377,7 +366,7 @@ LDFLAGS = -Map ../../$(MAP)
 $(ELF): $(LD_SCRIPT) $(LD_SCRIPT_DEPS) $(OBJS) libagbsyscall
 	@cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ../../$< --print-memory-usage -o ../../$@ $(OBJS_REL) $(LIB) | cat
 	@echo "cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ../../$< --print-memory-usage -o ../../$@ <objs> <libs> | cat"
-	$(FIX) $@ -t"$(TITLE)" -c$(GAME_CODE) -m$(MAKER_CODE) -r$(REVISION) --silent
+	$(FIX) $@ -t"$(TITLE)" -c$(GAME_CODE) -m$(MAKER_CODE) -r$(GAME_REVISION) --silent
 
 # Builds the rom from the elf file
 $(ROM): $(ELF)

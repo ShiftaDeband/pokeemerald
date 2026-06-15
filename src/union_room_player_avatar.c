@@ -3,6 +3,7 @@
 #include "event_object_movement.h"
 #include "field_player_avatar.h"
 #include "fieldmap.h"
+#include "sloopsvc.h"
 #include "script.h"
 #include "task.h"
 #include "union_room.h"
@@ -500,6 +501,14 @@ static void SpawnGroupLeaderAndMembers(u32 leaderId, struct RfuGameData *gameDat
     {
     case ACTIVITY_NONE | IN_UNION_ROOM:
     case ACTIVITY_PLYRTALK | IN_UNION_ROOM:
+#if REVISION >= 0xA
+        if ((svc_4b() & SVC4B_EXIT_EARLY) != 0)
+        {
+            DespawnGroupLeader(leaderId);
+            AssembleGroup(leaderId, gameData);
+            break;
+        }
+#endif
         SpawnGroupLeader(leaderId, gameData->playerGender, gameData->compatibility.playerTrainerId[0]);
         for (i = 0; i < MAX_RFU_PLAYERS; i++)
             DespawnGroupMember(leaderId, i);

@@ -881,11 +881,18 @@ static void SetLinkBattleEndCallbacks(void)
 // Despite handling link battles separately, this is only ever used by link battles
 void SetBattleEndCallbacks(void)
 {
+#if REVISION >= 0xA
+#else
     if (!gPaletteFade.active)
+#endif
     {
         if (gBattleTypeFlags & BATTLE_TYPE_LINK)
         {
+#if REVISION >= 0xA
+            if (!IsLinkTaskFinished() || gPaletteFade.active) return;
+#else
             if (IsLinkTaskFinished())
+#endif
             {
                 if (gWirelessCommType == 0)
                     SetCloseLinkCallback();

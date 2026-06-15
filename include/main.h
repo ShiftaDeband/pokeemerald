@@ -19,7 +19,11 @@ struct Main
 
     /*0x01C*/ vu16 intrCheck;
 
+#if REVISION >= 0xA
+    /*0x020*/ u32 *vblankCounter1;
+#else
     /*0x020*/ u32 vblankCounter1;
+#endif
     /*0x024*/ u32 vblankCounter2;
 
     /*0x028*/ u16 heldKeysRaw;           // held keys without L=A remapping
@@ -37,6 +41,9 @@ struct Main
 
     /*0x439*/ u8 oamLoadDisabled:1;
     /*0x439*/ u8 inBattle:1;
+#if REVISION >= 0xA
+    /*0x439*/ u8 field_439_x4:1;
+#endif
     /*0x439*/ u8 anyLinkBattlerHasFrontierPass:1;
 };
 
@@ -72,5 +79,9 @@ void RestoreSerialTimer3IntrHandlers(void);
 void StartTimer1(void);
 void SeedRngAndSetTrainerId(void);
 u16 GetGeneratedTrainerIdLower(void);
+#if REVISION >= 0xA
+void SetVBlankCounter1Ptr(u32 *ptr);
+void DisableVBlankCounter1(void);
+#endif
 
 #endif // GUARD_MAIN_H
